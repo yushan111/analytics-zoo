@@ -9,7 +9,8 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either exp'
+# ress or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
@@ -66,6 +67,7 @@ class SmokeRecipe(Recipe):
     def search_space(self, all_available_features):
         return {
             "selected_features": all_available_features,
+            "model": RandomSample(lambda spec: np.random.choice(["LSTM", "Seq2seq"], size=1)[0]),
             "lstm_1_units": RandomSample(lambda spec: np.random.choice([32, 64], size=1)[0]),
             "dropout_1": RandomSample(lambda spec: np.random.uniform(0.2, 0.5)),
             "lstm_2_units": RandomSample(lambda spec: np.random.choice([32, 64], size=1)[0]),
@@ -73,13 +75,46 @@ class SmokeRecipe(Recipe):
             "lr": 0.001,
             "batch_size": 1024,
             "epochs": 1,
-            "past_seq_len": 1,
+            "past_seq_len": 2,
         }
 
     def runtime_params(self):
         return {
             "training_iteration": 1,
             "num_samples": 1,
+        }
+
+
+class MTNetSmokeRecipe(Recipe):
+    """
+    A very simple Recipe for smoke test that runs one epoch and one iteration on MTNet
+    with only 1 random sample.
+    """
+    def __init__(self):
+        pass
+
+    def search_space(self, all_available_features):
+        return {
+            "selected_features": all_available_features,
+            "model": "MTNet",
+            "lr": 0.001,
+            "batch_size": 16,
+            "epochs": 1,
+            "n": RandomSample(lambda spec: np.random.choice([3, 4], size=1)[0]),
+            "highway_window": RandomSample(lambda spec: np.random.choice([2, 3], size=1)[0]),
+            "T": RandomSample(lambda spec: np.random.choice([3, 4], size=1)[0]),
+            # W <= T
+            "W": 2,
+            'metric': 'smape',
+            # can not merge into basic recipes since the definition of past_seq_len varies.
+            "past_seq_len": RandomSample(lambda spec: (spec.config.n + 1) * spec.config.T),
+
+        }
+
+    def runtime_params(self):
+        return {
+            "training_iteration": 1,
+            "num_samples": 5,
         }
 
 
@@ -94,16 +129,27 @@ class GridRandomRecipe(Recipe):
           a fixed length to look back.
     """
 
-    def __init__(self, num_rand_samples=1, look_back=1):
+    def __init__(self, num_rand_samples=1, look_back=2):
         self.num_samples = num_rand_samples
         if isinstance(look_back, tuple) and len(look_back) == 2 and \
                 isinstance(look_back[0], int) and isinstance(look_back[1], int):
+            if look_back[1] < 2:
+                raise ValueError("The max look back value should be at least 2")
+            if look_back[0] < 2:
+                print("The input min look back value is smaller than 2. "
+                      "We sample from range (2, {}) instead.".format(look_back[1]))
             self.past_seq_config = RandomSample(
                 lambda spec: np.random.randint(look_back[0], look_back[1]+1, size=1)[0])
         elif isinstance(look_back, int):
+            if look_back < 2:
+                raise ValueError("look back value should not be smaller than 2. "
+                                 "Current value is ", look_back)
             self.past_seq_config = look_back
         else:
-            raise ValueError("look_back should be either (min_len,max_len) or fixed_len")
+            raise ValueError("look back is {}.\n "
+                             "look_back should be either a tuple with 2 int values:"
+                             " (min_len, max_len) or a single int"
+                             .format(look_back))
 
     def search_space(self, all_available_features):
         return {
@@ -115,6 +161,7 @@ class GridRandomRecipe(Recipe):
                     replace=False)),
 
             # --------- model related parameters
+            "model": GridSearch(["LSTM", "Seq2seq"]),
             "lr": 0.001,
             "lstm_1_units": GridSearch([16, 32]),
             "dropout_1": 0.2,
@@ -143,19 +190,28 @@ class RandomRecipe(Recipe):
           a fixed length to look back.
     """
 
-    def __init__(self, num_rand_samples=1, look_back=1, reward_metric=-0.05):
+    def __init__(self, num_rand_samples=1, look_back=2, reward_metric=-0.05):
         self.num_samples = num_rand_samples
         self.reward_metric = reward_metric
         if isinstance(look_back, tuple) and len(look_back) == 2 and \
                 isinstance(look_back[0], int) and isinstance(look_back[1], int):
+            if look_back[1] < 2:
+                raise ValueError("The max look back value should be at least 2")
+            if look_back[0] < 2:
+                print("The input min look back value is smaller than 2. "
+                      "We sample from range (2, {}) instead.".format(look_back[1]))
             self.past_seq_config = \
                 RandomSample(lambda spec:
                              np.random.randint(look_back[0], look_back[1]+1, size=1)[0])
         elif isinstance(look_back, int):
+            if look_back < 2:
+                raise ValueError("look back value should not be smaller than 2. "
+                                 "Current value is ", look_back)
             self.past_seq_config = look_back
         else:
             raise ValueError("look back is {}.\n "
-                             "look_back should be either [min_len,max_len] or fixed_len"
+                             "look_back should be either a tuple with 2 int values:"
+                             " (min_len, max_len) or a single int"
                              .format(look_back))
 
     def search_space(self, all_available_features):
@@ -167,13 +223,19 @@ class RandomRecipe(Recipe):
                     size=np.random.randint(low=3, high=len(all_available_features), size=1))
             ),
 
-            # --------- model parameters
+            "model": RandomSample(lambda spec: np.random.choice(["LSTM", "Seq2seq"], size=1)[0]),
+            # --------- Vanilla LSTM model parameters
             "lstm_1_units": RandomSample(lambda spec:
                                          np.random.choice([8, 16, 32, 64, 128], size=1)[0]),
             "dropout_1": RandomSample(lambda spec: np.random.uniform(0.2, 0.5)),
             "lstm_2_units": RandomSample(lambda spec:
                                          np.random.choice([8, 16, 32, 64, 128], size=1)[0]),
             "dropout_2": RandomSample(lambda spec: np.random.uniform(0.2, 0.5)),
+
+            # ----------- Seq2Seq model parameters
+            "latent_dim": RandomSample(lambda spec:
+                                       np.random.choice([32, 64, 128, 256], size=1)[0]),
+            "dropout": RandomSample(lambda spec: np.random.uniform(0.2, 0.5)),
 
             # ----------- optimization parameters
             "lr": RandomSample(lambda spec: np.random.uniform(0.001, 0.01)),
@@ -196,24 +258,33 @@ class BayesRecipe(Recipe):
     A Bayes search Recipe.
        tsp = TimeSequencePredictor(...,recipe = BayesRecipe(5))
 
-    @param num_rand_samples: number of hyper-param configurations sampled randomly
+    @param num_samples: number of hyper-param configurations sampled
     @param look_back: the length to look back, either a tuple with 2 int values,
           which is in format is (min len, max len), or a single int, which is
           a fixed length to look back.
     """
-    def __init__(self, num_rand_samples=1, look_back=1, reward_metric=-0.05):
-        self.num_samples = num_rand_samples
+    def __init__(self, num_samples=1, look_back=2, reward_metric=-0.05):
+        self.num_samples = num_samples
         self.reward_metric = reward_metric
         if isinstance(look_back, tuple) and len(look_back) == 2 and \
                 isinstance(look_back[0], int) and isinstance(look_back[1], int):
+            if look_back[1] < 2:
+                raise ValueError("The max look back value should be at least 2")
+            if look_back[0] < 2:
+                print("The input min look back value is smaller than 2. "
+                      "We sample from range (2, {}) instead.".format(look_back[1]))
             self.bayes_past_seq_config = {"past_seq_len_float": look_back}
             self.fixed_past_seq_config = {}
         elif isinstance(look_back, int):
+            if look_back < 2:
+                raise ValueError("look back value should not be smaller than 2. "
+                                 "Current value is ", look_back)
             self.bayes_past_seq_config = {}
             self.fixed_past_seq_config = {"past_seq_len": look_back}
         else:
             raise ValueError("look back is {}.\n "
-                             "look_back should be either [min_len,max_len] or fixed_len"
+                             "look_back should be either a tuple with 2 int values:"
+                             " (min_len, max_len) or a single int"
                              .format(look_back))
 
     def search_space(self, all_available_features):
@@ -306,8 +377,9 @@ class TimeSequencePredictor(object):
     def fit(self,
             input_df,
             validation_df=None,
-            metric="mean_squared_error",
+            metric="mse",
             recipe=SmokeRecipe(),
+            mc=False,
             resources_per_trial={"cpu": 2},
             distributed=False,
             hdfs_url=None
@@ -349,6 +421,7 @@ class TimeSequencePredictor(object):
                                         validation_df=validation_df,
                                         metric=metric,
                                         recipe=recipe,
+                                        mc=mc,
                                         resources_per_trial=resources_per_trial,
                                         remote_dir=remote_dir)
         return self.pipeline
@@ -431,6 +504,7 @@ class TimeSequencePredictor(object):
                    validation_df,
                    metric,
                    recipe,
+                   mc,
                    resources_per_trial,
                    remote_dir):
 
@@ -474,10 +548,11 @@ class TimeSequencePredictor(object):
                          future_seq_len=self.future_seq_len,
                          validation_df=validation_df,
                          metric=metric,
+                         mc=mc,
                          num_samples=num_samples)
         # searcher.test_run()
+        searcher.run()
 
-        trials = searcher.run()
         best = searcher.get_best_trials(k=1)[0]  # get the best one trial, later could be n
         pipeline = self._make_pipeline(best,
                                        feature_transformers=ft,
@@ -507,7 +582,8 @@ class TimeSequencePredictor(object):
                                      model,
                                      # config)
                                      )
-        return TimeSequencePipeline(feature_transformers=feature_transformers,
+        return TimeSequencePipeline(name=self.name,
+                                    feature_transformers=feature_transformers,
                                     model=model,
                                     config=all_config)
 
@@ -577,23 +653,31 @@ if __name__ == "__main__":
 
     hdfs_url = "hdfs://172.16.0.103:9000"
 
+    future_seq_len = args.future_seq_len
     tsp = TimeSequencePredictor(dt_col="datetime",
                                 target_col="value",
-                                future_seq_len=args.future_seq_len,
+                                future_seq_len=future_seq_len,
                                 extra_features_col=None,
                                 )
 
+    mc = False
     pipeline = tsp.fit(train_df,
                        validation_df=val_df,
-                       metric="mean_squared_error",
+                       metric="mse",
                        # recipe=BayesRecipe(num_rand_samples=2, look_back=(2, 4)),
                        # recipe=RandomRecipe(look_back=(2, 4)),
+                       recipe=SmokeRecipe(),
+                       mc=mc,
                        distributed=distributed,
                        hdfs_url=hdfs_url)
 
-    print("evaluate:", pipeline.evaluate(test_df, metrics=["mean_squared_error", "r_square"]))
+    print("evaluate:", pipeline.evaluate(test_df, metrics=["mse", "r2"]))
     pred = pipeline.predict(test_df)
-    print("predict:", pred.shape)
+    print("shape of prediction:", pred.shape)
+    if mc:
+        y_pred, y_uncertainty = pipeline.predict_with_uncertainty(test_df)
+        print("shape of output of uncertain predict:", y_pred.shape, y_uncertainty.shape)
+        print(y_uncertainty[:5])
 
     save_pipeline_file = "tmp.ppl"
     pipeline.save(save_pipeline_file)
@@ -602,14 +686,23 @@ if __name__ == "__main__":
     os.remove(save_pipeline_file)
 
     new_pipeline.describe()
-    print("evaluate:", new_pipeline.evaluate(test_df, metrics=["mean_squared_error", "r_square"]))
+    print("evaluate:", new_pipeline.evaluate(test_df, metrics=["mse", "r2"]))
 
     new_pred = new_pipeline.predict(test_df)
-    print("predict:", pred.shape)
-    np.testing.assert_allclose(pred["value"].values, new_pred["value"].values)
+    print("shape of prediction:", new_pred.shape)
+    if mc:
+        new_y_pred, new_y_uncertainty = new_pipeline.predict_with_uncertainty(test_df)
+        print("shape of output of uncertain predict:", new_y_pred.shape, new_y_uncertainty.shape)
+        print(new_y_uncertainty[:5])
+    else:
+        if future_seq_len > 1:
+            columns = ["{}_{}".format("value", i) for i in range(future_seq_len)]
+            np.testing.assert_allclose(pred[columns].values, new_pred[columns].values)
+        else:
+            np.testing.assert_allclose(pred["value"].values, new_pred["value"].values)
 
     new_pipeline.fit(train_df, val_df, epoch_num=5)
-    print("evaluate:", new_pipeline.evaluate(test_df, metrics=["mean_squared_error", "r_square"]))
+    print("evaluate:", new_pipeline.evaluate(test_df, metrics=["mse", "r2"]))
 
     if args.hadoop_conf or args.spark_local:
         ray_ctx.stop()

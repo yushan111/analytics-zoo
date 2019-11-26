@@ -16,6 +16,13 @@
 from .abstract import BaseModel
 from .VanillaLSTM import VanillaLSTM
 from .Seq2Seq import LSTMSeq2Seq
+from .MTNet import MTNet
+from zoo.automl.common.util import *
+
+MODEL_MAP = {"LSTM": VanillaLSTM,
+             "Seq2seq": LSTMSeq2Seq,
+             "MTNet": MTNet
+             }
 
 
 class TimeSequenceModel(BaseModel):
@@ -28,22 +35,27 @@ class TimeSequenceModel(BaseModel):
         :param check_optional_config:
         :param future_seq_len:
         """
-        if future_seq_len:
-            self._model_selection(future_seq_len, check_optional_config)
+        self.check_optional_config = check_optional_config
+        self.future_seq_len = future_seq_len
+        self.model = None
+        self.selected_model = None
 
-    def _model_selection(self, future_seq_len, check_optional_config=False, verbose=1):
-        if future_seq_len == 1:
-            self.model = VanillaLSTM(check_optional_config=check_optional_config,
-                                     future_seq_len=future_seq_len)
-            if verbose == 1:
-                print("Model selection: Vanilla LSTM model is selected.")
-        else:
-            self.model = LSTMSeq2Seq(check_optional_config=check_optional_config,
-                                     future_seq_len=future_seq_len)
-            if verbose == 1:
-                print("Model selection: LSTM Seq2Seq model is selected.")
+    #     if future_seq_len:
+    #         self._model_selection(future_seq_len, check_optional_config)
+    #
+    # def _model_selection(self, future_seq_len, check_optional_config=False, verbose=1):
+    #     if future_seq_len == 1:
+    #         self.model = VanillaLSTM(check_optional_config=check_optional_config,
+    #                                  future_seq_len=future_seq_len)
+    #         if verbose == 1:
+    #             print("Model selection: Vanilla LSTM model is selected.")
+    #     else:
+    #         self.model = LSTMSeq2Seq(check_optional_config=check_optional_config,
+    #                                  future_seq_len=future_seq_len)
+    #         if verbose == 1:
+    #             print("Model selection: LSTM Seq2Seq model is selected.")
 
-    def fit_eval(self, x, y, validation_data=None, verbose=0, **config):
+    def fit_eval(self, x, y, validation_data=None, mc=False, verbose=0, **config):
         """
         fit for one iteration
         :param x: 3-d array in format (no. of samples, past sequence length, 2+feature length),
@@ -59,9 +71,23 @@ class TimeSequenceModel(BaseModel):
         :param config: optimization hyper parameters
         :return: the resulting metric
         """
-        return self.model.fit_eval(x, y, validation_data=validation_data, verbose=verbose, **config)
+        if not self.model:
+            self._sel_model(config)
 
-    def evaluate(self, x, y, metric=['mean_squared_error']):
+        return self.model.fit_eval(x, y,
+                                   validation_data=validation_data,
+                                   mc=mc,
+                                   verbose=verbose,
+                                   **config)
+
+    def _sel_model(self, config):
+        self.selected_model = config.get("model", "LSTM")
+        self.model = MODEL_MAP[self.selected_model](
+            check_optional_config=self.check_optional_config,
+            future_seq_len=self.future_seq_len)
+        print(self.selected_model, "is selected.")
+
+    def evaluate(self, x, y, metric=['mse']):
         """
         Evaluate on x, y
         :param x: input
@@ -71,13 +97,16 @@ class TimeSequenceModel(BaseModel):
         """
         return self.model.evaluate(x, y, metric)
 
-    def predict(self, x):
+    def predict(self, x, mc=False):
         """
         Prediction on x.
         :param x: input
         :return: predicted y
         """
         return self.model.predict(x)
+
+    def predict_with_uncertainty(self, x, n_iter=100):
+        return self.model.predict_with_uncertainty(x, n_iter)
 
     def save(self, model_path, config_path):
         """
@@ -86,10 +115,17 @@ class TimeSequenceModel(BaseModel):
         :param config_path: the config file
         :return:
         """
+        model_config = {"future_seq_len": self.future_seq_len,
+                        "model": self.selected_model}
+        save_config(config_path, model_config)
         self.model.save(model_path, config_path)
 
     def restore(self, model_path, **config):
-        self._model_selection(future_seq_len=config["future_seq_len"], verbose=0)
+        assert "future_seq_len" in config
+        assert "model" in config
+        self.future_seq_len = config["future_seq_len"]
+        self._sel_model(config=config)
+        # self._model_selection(future_seq_len=config["future_seq_len"], verbose=0)
         self.model.restore(model_path, **config)
 
     def _get_required_parameters(self):
