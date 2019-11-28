@@ -21,7 +21,7 @@ class MTNet(BaseModel):
         """
         # config parameter
         self.future_seq_len = future_seq_len
-        self.K = self.future_seq_len
+        # self.K = self.future_seq_len
         self.T = None  # timestep
         self.W = None  # convolution window size (convolution filter height)` ?
         self.n = None  # the number of the long-term memory series
@@ -333,6 +333,8 @@ class MTNet(BaseModel):
         :y_train:
         :validation_data:
         """
+
+
         batch_data_train = self._prepare_batches(x_train, y_train)
         if len(batch_data_train) == 0:
             raise ValueError("A batch size of {} is too large for training data (len = {})."
@@ -395,7 +397,7 @@ class MTNet(BaseModel):
             batch_data.append((X_last_batch, q_last_batch, None))
         return batch_data
 
-    def _set_config(self, x=None, rs=False, **config):
+    def _set_config(self, x=None, y = None, rs=False, **config):
         """
         read out configurations, used at the beginning of self.fit_eval()
         :config:
@@ -410,6 +412,7 @@ class MTNet(BaseModel):
         else:
             super()._check_config(**config)
             self.D = x.shape[-1]
+            self.K = y.shape[-1]
             # self.K = future_seq_len is set in constructor
         self.T = config.get("T", 1)
         self.W = config.get('W', 1)
@@ -487,7 +490,7 @@ class MTNet(BaseModel):
         """
         if not self.built:
             # use the same config for different iterations.
-            self._set_config(x, **config)
+            self._set_config(x, y, **config)
             if verbose > 0:
                 print("building")
                 build_st = time.time()
@@ -563,7 +566,7 @@ class MTNet(BaseModel):
         return [Evaluator.evaluate(m, y, y_pred, multioutput=multioutput) for m in metrics]
 
     def predict_with_uncertainty(self, x, n_iter=100):
-        result = np.zeros((n_iter,) + (x.shape[0], self.future_seq_len))
+        result = np.zeros((n_iter,) + (x.shape[0], self.K))
 
         for i in range(n_iter):
             result[i, :, :] = self.predict(x, mc=True)

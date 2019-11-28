@@ -472,7 +472,10 @@ class TimeSequencePredictor(object):
             raise ValueError("input_df should be a data frame or a list of data frames")
 
     def _check_missing_col(self, input_df):
-        cols_list = [self.dt_col, self.target_col]
+        if isinstance(self.target_col, list):
+            cols_list = [self.dt_col] + self.target_col
+        else:
+            cols_list = [self.dt_col, self.target_col]
         if self.extra_features_col is not None:
             if not isinstance(self.extra_features_col, (list,)):
                 raise ValueError("extra_features_col needs to be either None or a list")

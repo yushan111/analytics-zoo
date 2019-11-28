@@ -196,13 +196,13 @@ class TimeSequenceFeatureTransformer(BaseFeatureTransformer):
 
     def _unscale(self, y):
         # for standard scalar
-        value_mean = self.scaler.mean_[0]
-        value_scale = self.scaler.scale_[0]
+        value_mean = self.scaler.mean_[0] if isinstance(self.target_col, str) else self.scaler.mean_[:len(self.target_col)]
+        value_scale = self.scaler.scale_[0]  if isinstance(self.target_col, str) else self.scaler.scale_[:len(self.target_col)]
         y_unscale = y * value_scale + value_mean
         return y_unscale
 
     def unscale_uncertainty(self, y_uncertainty):
-        value_scale = self.scaler.scale_[0]
+        value_scale = self.scaler.scale_[0] if isinstance(self.target_col, str) else self.scaler.scale_[:len(self.target_col)]
         # print(value_scale)
         y_uncertainty_unscle = y_uncertainty * value_scale
         return y_uncertainty_unscle
@@ -219,6 +219,9 @@ class TimeSequenceFeatureTransformer(BaseFeatureTransformer):
         if self.future_seq_len > 1:
             columns = ["{}_{}".format(self.target_col, i) for i in range(self.future_seq_len)]
             y_pred_df[columns] = pd.DataFrame(y_pred_unscale)
+        elif isinstance(self.target_col, list): # for multivariable prediction
+            for (idx, each) in enumerate(self.target_col):
+                y_pred_df[each] = y_pred_unscale[:, idx]
         else:
             y_pred_df[self.target_col] = y_pred_unscale
         return y_pred_df
@@ -242,13 +245,13 @@ class TimeSequenceFeatureTransformer(BaseFeatureTransformer):
             if isinstance(input_df, list):
                 y_unscale_list = []
                 for df in input_df:
-                    _, y_unscale = self._roll_train(df[[self.target_col]],
+                    _, y_unscale = self._roll_train(df[[self.target_col]] if isinstance(self.target_col, str) else df[self.target_col],
                                                     self.past_seq_len,
                                                     self.future_seq_len)
                     y_unscale_list.append(y_unscale)
                 output_y_unscale = np.concatenate(y_unscale_list, axis=0)
             else:
-                _, output_y_unscale = self._roll_train(input_df[[self.target_col]],
+                _, output_y_unscale = self._roll_train(input_df[[self.target_col]] if isinstance(self.target_col, str) else input_df[self.target_col],
                                                        self.past_seq_len,
                                                        self.future_seq_len)
             return output_y_unscale, y_pred_unscale
@@ -418,7 +421,6 @@ class TimeSequenceFeatureTransformer(BaseFeatureTransformer):
                 mask.append(0)
             else:
                 mask.append(1)
-
         return np.asarray(result), np.asarray(mask)
 
     def _roll_train(self, dataframe, past_seq_len, future_seq_len):
@@ -438,9 +440,13 @@ class TimeSequenceFeatureTransformer(BaseFeatureTransformer):
             length = 1
         """
         x = dataframe[0:-future_seq_len].values
-        y = dataframe.iloc[past_seq_len:, 0].values
+        y = dataframe.iloc[past_seq_len:, 0].values if isinstance(self.target_col, str) else dataframe.iloc[past_seq_len:, :len(self.target_col)].values
         output_x, mask_x = self._roll_data(x, past_seq_len)
-        output_y, mask_y = self._roll_data(y, future_seq_len)
+        output_y, mask_y = self._roll_data(y, future_seq_len)        
+        # a temporary solution to restore the 2D-array invariant of output y
+        if type(self.target_col) is list: 
+            output_y = output_y.reshape(len(output_y), -1) # reshape to 2D 
+
         # assert output_x.shape[0] == output_y.shape[0],
         # "The shape of output_x and output_y doesn't match! "
         mask = (mask_x == 1) & (mask_y == 1)
@@ -556,7 +562,7 @@ class TimeSequenceFeatureTransformer(BaseFeatureTransformer):
         feature_cols = np.asarray(config.get("selected_features"))
         # we do not include target col in candidates.
         # the first column is designed to be the default position of target column.
-        target_col = np.array([self.target_col])
+        target_col = np.array([self.target_col]) if isinstance(self.target_col, str) else np.array(self.target_col)
         cols = np.concatenate([target_col, feature_cols])
         target_feature_matrix = feature_matrix[cols]
         return target_feature_matrix.astype(float)
