@@ -57,7 +57,6 @@ class RayTuneSearchEngine(SearchEngine):
                 search_algorithm_params=None,
                 fixed_params=None,
                 feature_transformers=None,
-                # model=None,
                 future_seq_len=1,
                 validation_df=None,
                 mc=False,
@@ -81,10 +80,8 @@ class RayTuneSearchEngine(SearchEngine):
         self.stop_criteria = stop
         self.num_samples = num_samples
         if metric == "mse":
-            # mode = "min"
             metric_op = -1
         elif metric == "r2":
-            # mode = "max"
             metric_op = 1
         else:
             raise ValueError("metric can only be \"mse\" or \"r2\"")
@@ -96,13 +93,6 @@ class RayTuneSearchEngine(SearchEngine):
                 reward_attr="reward_metric",
                 utility_kwargs=search_algorithm_params["utility_kwargs"]
             )
-            # ray version 0.7.3
-            # self.search_algorithm = BayesOptSearch(
-            #     self.search_space,
-            #     metric="reward_metric",
-            #     mode=mode,
-            #     utility_kwargs=search_algorithm_params["utility_kwargs"]
-            # )
         else:
             self.search_algorithm = None
         self.fixed_params = fixed_params
@@ -115,13 +105,6 @@ class RayTuneSearchEngine(SearchEngine):
                                                    metric_op,
                                                    mc,
                                                    self.remote_dir)
-        # self.trainable_class = self._prepare_trainable_class(input_df,
-        #                                                      feature_transformers,
-        #                                                      # model,
-        #                                                      future_seq_len,
-        #                                                      validation_df,
-        #                                                      metric_op,
-        #                                                      self.remote_dir)
 
     def run(self):
         """
@@ -152,48 +135,6 @@ class RayTuneSearchEngine(SearchEngine):
                 verbose=1,
                 reuse_actors=True
             )
-        # class based
-        # if not self.search_algorithm:
-        #     trials = tune.run(
-        #         self.trainable_class,
-        #         name=self.name,
-        #         stop=self.stop_criteria,
-        #         config=self.search_space,
-        #         checkpoint_freq=1,
-        #         checkpoint_at_end=True,
-        #         resume="prompt",
-        #         # upload_dir="hdfs://172.16.0.103:9000/yushan",
-        #         # sync_function="source_path={source};"
-        #         #               "target_path={target};"
-        #         #               "if [[ $source_path == hdfs:* ]]; "
-        #         #               "then echo \"hadoop fs -get $source_path $target_path\"; "
-        #         #               "else echo \"hadoop fs -put $target_path $source_path\"; fi",
-        #         num_samples=self.num_samples,
-        #         resources_per_trial=self.resources_per_trail,
-        #         verbose=1,
-        #         reuse_actors=True
-        #     )
-        # else:
-        #     trials = tune.run(
-        #         self.trainable_class,
-        #         name=self.name,
-        #         config=self.fixed_params,
-        #         stop=self.stop_criteria,
-        #         search_alg=self.search_algorithm,
-        #         checkpoint_freq=1,
-        #         checkpoint_at_end=True,
-        #         resume="prompt",
-        #         # upload_dir="hdfs://172.16.0.103:9000/yushan",
-        #         # sync_function="source_path={source};"
-        #         #               "target_path={target};"
-        #         #               "if [[ $source_path == hdfs:* ]]; "
-        #         #               "then echo \"hadoop fs -get $source_path $target_path\"; "
-        #         #               "else echo \"hadoop fs -put $target_path $source_path\"; fi",
-        #         num_samples=self.num_samples,
-        #         resources_per_trial=self.resources_per_trail,
-        #         verbose=1,
-        #         reuse_actors=True
-        #         )
         self.trials = trials
         return self
 
@@ -316,16 +257,8 @@ class RayTuneSearchEngine(SearchEngine):
                                               y_train,
                                               validation_data=validation_data,
                                               mc=mc,
-                                              # verbose=1,
                                               **config)
                 reward_m = metric_op * result
-                # if metric == "mean_squared_error":
-                #     reward_m = (-1) * result
-                #     # print("running iteration: ",i)
-                # elif metric == "r_square":
-                #     reward_m = result
-                # else:
-                #     raise ValueError("metric can only be \"mean_squared_error\" or \"r_square\"")
                 ckpt_name = "best.ckpt"
                 if reward_m > best_reward_m:
                     best_reward_m = reward_m
@@ -344,11 +277,9 @@ class RayTuneSearchEngine(SearchEngine):
     @staticmethod
     def _prepare_trainable_class(input_df,
                                  feature_transformers,
-                                 # model,
                                  future_seq_len,
                                  validation_df=None,
                                  metric_op=1,
-                                 # metric="mean_squared_error",
                                  remote_dir=None
                                  ):
         """
@@ -362,7 +293,6 @@ class RayTuneSearchEngine(SearchEngine):
         """
         input_df_id = ray.put(input_df)
         ft_id = ray.put(feature_transformers)
-        # model_id = ray.put(model)
 
         df_not_empty = isinstance(validation_df, pd.DataFrame) and not validation_df.empty
         df_list_not_empty = isinstance(validation_df, list) and validation_df \
@@ -389,8 +319,6 @@ class RayTuneSearchEngine(SearchEngine):
                 self.config = convert_bayes_configs(config).copy()
                 (self.x_train, self.y_train) = self.trial_ft.fit_transform(trial_input_df,
                                                                            **self.config)
-                # trial_ft.fit(trial_input_df, **config)
-
                 # handling validation data
                 self.validation_data = None
                 if is_val_df_valid:
@@ -399,7 +327,6 @@ class RayTuneSearchEngine(SearchEngine):
                     self.validation_data = self.trial_ft.transform(trial_validation_df)
 
                 # no need to call build since it is called the first time fit_eval is called.
-                # callbacks = [TuneCallback(tune_reporter)]
                 # fit model
                 self.best_reward_m = -999
                 self.reward_m = -999
@@ -412,22 +339,12 @@ class RayTuneSearchEngine(SearchEngine):
                                                    # verbose=1,
                                                    **self.config)
                 self.reward_m = metric_op * result
-                # if metric == "mean_squared_error":
-                #     self.reward_m = (-1) * result
-                #     # print("running iteration: ",i)
-                # elif metric == "r_square":
-                #     self.reward_m = result
-                # else:
-                #     raise ValueError("metric can only be \"mean_squared_error\" or \"r_square\"")
                 return {"reward_metric": self.reward_m, "checkpoint": self.ckpt_name}
 
             def _save(self, checkpoint_dir):
-                # print("checkpoint dir is ", checkpoint_dir)
                 ckpt_name = self.ckpt_name
                 # save in the working dir (without "checkpoint_{}".format(training_iteration))
                 path = os.path.join(checkpoint_dir, "..", ckpt_name)
-                # path = os.path.join(checkpoint_dir, ckpt_name)
-                # print("checkpoint save path is ", checkpoint_dir)
                 if self.reward_m > self.best_reward_m:
                     self.best_reward_m = self.reward_m
                     print("****this reward is", self.reward_m)
@@ -438,7 +355,6 @@ class RayTuneSearchEngine(SearchEngine):
                 return path
 
             def _restore(self, checkpoint_path):
-                # print("checkpoint path in restore is ", checkpoint_path)
                 if remote_dir is not None:
                     restore_hdfs(checkpoint_path, remote_dir, self.trial_ft, self.trial_model)
                 else:

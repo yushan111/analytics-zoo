@@ -13,17 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 
-from time import time
-from tensorflow.keras.callbacks import TensorBoard
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, LSTM, Dense
 import tensorflow.keras as keras
 
-import os
-
-from zoo.automl.feature.time_sequence import TimeSequenceFeatureTransformer
 from zoo.automl.model.abstract import BaseModel
 from zoo.automl.common.util import *
 from zoo.automl.common.metrics import Evaluator
@@ -232,25 +226,17 @@ class LSTMSeq2Seq(BaseModel):
         if self.model is None:
             self._build_train(mc=mc, **config)
 
-        # batch_size = config.get('batch_size', 64)
         epochs = config.get('epochs', 10)
-        # lr = self.lr
-        # name = "seq2seq-batch_size-{}-epochs-{}-lr-{}-time-{}"\
-        #     .format(batch_size, epochs, lr, time())
-        # tensorboard = TensorBoard(log_dir="logs/" + name)
 
         hist = self.model.fit([x, decoder_input_data], y,
                               validation_data=validation_data,
                               batch_size=self.batch_size,
                               epochs=epochs,
                               verbose=verbose,
-                              # callbacks=[tensorboard]
                               )
-        # print(hist.history)
 
         if validation_data is None:
             # get train metrics
-            # results = self.model.evaluate(x, y)
             result = hist.history.get(self.metric)[-1]
         else:
             result = hist.history.get('val_' + str(self.metric))[-1]
@@ -265,7 +251,6 @@ class LSTMSeq2Seq(BaseModel):
         :return: a list of metric evaluation results
         """
         y_pred = self.predict(x)
-        # y = np.squeeze(y, axis=2)
         return [Evaluator.evaluate(m, y, y_pred) for m in metric]
 
     def predict(self, x, mc=False):
@@ -325,13 +310,9 @@ class LSTMSeq2Seq(BaseModel):
 
         self.model = keras.models.load_model(model_path)
         self._restore_model()
-        # self.model.load_weights(file_path)
 
     def _get_required_parameters(self):
         return {
-            # 'input_shape_x',
-            # 'input_shape_y',
-            # 'out_units'
         }
 
     def _get_optional_parameters(self):

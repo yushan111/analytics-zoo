@@ -179,8 +179,6 @@ class AttentionRNNWrapper(Wrapper):
         else:
             initial_states = self.layer.get_initial_state(x)
 
-        # print(initial_states)
-
         if not constants:
             constants = []
 
@@ -353,25 +351,6 @@ class MTNetKeras(BaseModel):
             linear_pred = 0
         y_pred = Add()([nonlinear_pred, linear_pred])
         self.model = Model(inputs=[long_input, short_input], outputs=y_pred)
-        # lr decay
-        # def lr_scheduler(epoch, r):
-        #     max_lr = 0.03
-        #     min_lr = 0.0001
-        #     lr = min_lr + (max_lr - min_lr) * math.exp(-epoch / 60)
-        #     return lr
-        # callbacks = [tf.keras.callbacks.LearningRateScheduler(lr_scheduler, verbose=1)]
-        # initial_lr = 0.003
-        # rate = math.exp(-1 / 60)
-        # lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-        #     initial_lr,
-        #     decay_steps=249,
-        #     decay_rate=rate,
-        #     staircase=True
-        # )
-        #
-        # self.model.compile(loss="mae",
-        #                    metrics=metrics,
-        #                    optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule))
 
         self.model.compile(loss="mae",
                            metrics=self.metrics,
@@ -560,19 +539,6 @@ class MTNetKeras(BaseModel):
         assert set(config_to_save.keys()) == self.saved_configs, \
             "The keys in config_to_save is not the same as self.saved_configs." \
             "Please keep them consistent"
-        # if self.decay_epochs > 0:
-        #     lr_decay_configs = {"min_lr": self.min_lr,
-        #                         "max_lr": self.max_lr}
-        #     assert set(lr_decay_configs.keys()) == self.lr_decay_configs, \
-        #         "The keys in lr_decay_configs is not the same as self.lr_decay_configs." \
-        #         "Please keep them consistent"
-        #     config_to_save.update(lr_decay_configs)
-        # else:
-        #     lr_configs = {"lr": self.lr_value}
-        #     assert set(lr_configs.keys()) == self.lr_configs, \
-        #         "The keys in lr_configs is not the same as self.lr_configs." \
-        #         "Please keep them consistent"
-        #     config_to_save.update(lr_configs)
 
         save_config(config_path, config_to_save)
 

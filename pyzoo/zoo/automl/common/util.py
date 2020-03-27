@@ -145,17 +145,13 @@ def save_zip(file, feature_transformers=None, model=None, config=None):
 def process(cmd):
     import subprocess
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    # process.wait()
     outs, errors = proc.communicate()
-    # if outs:
-    #     print("hdfs std out:", outs)
     if errors:
         print("hdfs errors:", errors)
     return outs, errors
 
 
 def get_remote_list(dir_in):
-    # dir_in = "hdfs://172.16.0.103:9000/yushan/"
     args = "hdfs dfs -ls " + dir_in + " | awk '{print $8}'"
     s_output, _ = process(args)
 
@@ -165,7 +161,6 @@ def get_remote_list(dir_in):
         filename = filename.decode()
         name_list = filename.split('/')
         names.append(name_list[-1])
-    # print(names)
     return names
 
 

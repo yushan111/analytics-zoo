@@ -110,7 +110,6 @@ class TimeSequencePipeline(Pipeline):
         :param user_configs: you can overwrite or add more configs with user_configs. Eg. "epochs"
         :return:
         """
-        # self._check_configs()
         if self.config is None:
             self.config = self.get_default_configs()
         if user_configs is not None:
@@ -153,8 +152,6 @@ class TimeSequencePipeline(Pipeline):
         """
         if isinstance(metrics, str):
             metrics = [metrics]
-        # if not isinstance(metrics, list):
-        #    raise ValueError("Expected metrics to be a list!")
 
         x, y = self.feature_transformers.transform(input_df, is_train=True)
         y_pred = self.model.predict(x)

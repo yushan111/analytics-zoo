@@ -15,6 +15,6 @@
 #
 
 from .abstract import *
-from .VanillaLSTM import *
-from .Seq2Seq import *
+from .vanilla_lstm import *
+from .seq2seq import *
 from .time_sequence import *

@@ -14,9 +14,9 @@
 # limitations under the License.
 #
 from .abstract import BaseModel
-from .VanillaLSTM import VanillaLSTM
-from .Seq2Seq import LSTMSeq2Seq
-from .MTNet_keras import MTNetKeras
+from .vanilla_lstm import VanillaLSTM
+from .seq2seq import LSTMSeq2Seq
+from .mtnet_keras import MTNetKeras
 from zoo.automl.common.util import *
 
 MODEL_MAP = {"LSTM": VanillaLSTM,
@@ -39,21 +39,6 @@ class TimeSequenceModel(BaseModel):
         self.future_seq_len = future_seq_len
         self.model = None
         self.selected_model = None
-
-    #     if future_seq_len:
-    #         self._model_selection(future_seq_len, check_optional_config)
-    #
-    # def _model_selection(self, future_seq_len, check_optional_config=False, verbose=1):
-    #     if future_seq_len == 1:
-    #         self.model = VanillaLSTM(check_optional_config=check_optional_config,
-    #                                  future_seq_len=future_seq_len)
-    #         if verbose == 1:
-    #             print("Model selection: Vanilla LSTM model is selected.")
-    #     else:
-    #         self.model = LSTMSeq2Seq(check_optional_config=check_optional_config,
-    #                                  future_seq_len=future_seq_len)
-    #         if verbose == 1:
-    #             print("Model selection: LSTM Seq2Seq model is selected.")
 
     def fit_eval(self, x, y, validation_data=None, mc=False, verbose=0, **config):
         """

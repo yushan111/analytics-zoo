@@ -15,21 +15,13 @@
 # limitations under the License.
 #
 
-
-import numpy as np
-import tempfile
-import zipfile
-import os
-import shutil
-import ray
-
 from zoo.automl.search.abstract import *
 from zoo.automl.search.RayTuneSearchEngine import RayTuneSearchEngine
 from zoo.automl.common.metrics import Evaluator
 from zoo.automl.feature.time_sequence import TimeSequenceFeatureTransformer
 
 from zoo.automl.model import TimeSequenceModel
-from zoo.automl.pipeline.time_sequence import TimeSequencePipeline, load_ts_pipeline
+from zoo.automl.pipeline.time_sequence import TimeSequencePipeline
 from zoo.automl.common.util import *
 from abc import ABC, abstractmethod
 
@@ -307,7 +299,6 @@ class BayesRecipe(Recipe):
     def fixed_params(self):
         total_fixed_params = {
             "epochs": 5,
-            # "batch_size": 1024,
         }
         total_fixed_params.update(self.fixed_past_seq_config)
         return total_fixed_params
@@ -511,12 +502,9 @@ class TimeSequencePredictor(object):
                                             self.target_col,
                                             self.extra_features_col,
                                             self.drop_missing)
-        if isinstance(input_df, list):
-            feature_list = ft.get_feature_list(input_df[0])
-        else:
-            feature_list = ft.get_feature_list(input_df)
+        assert isinstance(input_df, pd.DataFrame), "input_df must be a DataFrame"
+        feature_list = ft.get_feature_list(input_df)
 
-        # model = VanillaLSTM(check_optional_config=False)
         model = TimeSequenceModel(check_optional_config=False, future_seq_len=self.future_seq_len)
 
         # prepare parameters for search engine
@@ -540,15 +528,12 @@ class TimeSequencePredictor(object):
                          search_algorithm_params=search_algorithm_params,
                          search_algorithm=search_algorithm,
                          fixed_params=fixed_params,
-                         # feature_transformers=TimeSequenceFeatures,
                          feature_transformers=ft,
-                         # model=model,
                          future_seq_len=self.future_seq_len,
                          validation_df=validation_df,
                          metric=metric,
                          mc=mc,
                          num_samples=num_samples)
-        # searcher.test_run()
         searcher.run()
 
         best = searcher.get_best_trials(k=1)[0]  # get the best one trial, later could be n
@@ -572,13 +557,11 @@ class TimeSequencePredictor(object):
                                       remote_dir,
                                       feature_transformers,
                                       model,
-                                      # config)
                                       )
         else:
             all_config = restore_zip(trial.model_path,
                                      feature_transformers,
                                      model,
-                                     # config)
                                      )
         return TimeSequencePipeline(name=self.name,
                                     feature_transformers=feature_transformers,

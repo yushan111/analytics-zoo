@@ -315,18 +315,9 @@ class TimeSequenceFeatureTransformer(BaseFeatureTransformer):
         self.extra_features_col = config["extra_features_col"]
         self.drop_missing = config["drop_missing"]
 
-        # for MinMaxScalar()
-        # self.scaler = MinMaxScaler()
-        # self.scaler.min_ = np.asarray(result["min"])
-        # self.scaler.scale_ = np.asarray(result["scale"])
-        # print(self.scaler.transform(input_data))
-
     def get_feature_list(self, input_df):
-        if isinstance(input_df, list):
-            feature_matrix, feature_defs = self._generate_features(input_df[0])
-        else:
-            feature_matrix, feature_defs = self._generate_features(input_df)
-    # return [feat.generate_name() for feat in feature_defs if isinstance(feat, TransformFeature)]
+        feature_matrix, feature_defs = self._generate_features(input_df)
+
         feature_list = []
         for feat in feature_defs:
             feature_name = feat.generate_name()
@@ -541,18 +532,18 @@ class TimeSequenceFeatureTransformer(BaseFeatureTransformer):
             hour = column.dt.hour
             return (((hour >= 7) & (hour <= 9)) | (hour >= 16) & (hour <= 19)).astype(int)
 
-        IsAwake = make_trans_primitive(function=is_awake,
-                                       input_types=[DatetimeTimeIndex],
-                                       return_type=Numeric)
-        IsBusyHours = make_trans_primitive(function=is_busy_hours,
-                                           input_types=[DatetimeTimeIndex],
-                                           return_type=Numeric)
+        is_awake = make_trans_primitive(function=is_awake,
+                                        input_types=[DatetimeTimeIndex],
+                                        return_type=Numeric)
+        is_busy_hours = make_trans_primitive(function=is_busy_hours,
+                                             input_types=[DatetimeTimeIndex],
+                                             return_type=Numeric)
 
         feature_matrix, feature_defs = ft.dfs(entityset=es,
                                               target_entity="time_seq",
                                               agg_primitives=["count"],
                                               trans_primitives=["month", "weekday", "day", "hour",
-                                                                "is_weekend", IsAwake, IsBusyHours])
+                                                                "is_weekend", is_awake, is_busy_hours])
         return feature_matrix, feature_defs
 
     def _get_features(self, input_df, config):
